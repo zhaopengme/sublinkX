@@ -31,6 +31,11 @@ func TestDecodeSSURL(t *testing.T) {
 				s: "noss://YWVzLTI1Ni1jZmI6S1NYTmhuWnBqd0M2UGM2Q0A1NC4xNjkuMzUuMjI4OjMxNDQ0",
 			},
 			wantErr: true,
+		}, {
+			name: "ss with v2ray-plugin",
+			args: args{
+				s: "ss://YWVzLTEyOC1nY206VHE1OVpBcklMYmh5Y3pseXNMcDI1WkNDRQ==@v.adsentri.com:443?plugin=v2ray-plugin;mode=tls;tls=true;host=v.adsentri.com",
+			},
 		},
 	}
 	for _, tt := range tests {

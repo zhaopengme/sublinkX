@@ -45,6 +45,8 @@ type Proxy struct {
 	Congestion_control string                 `yaml:"congestion_control,omitempty"`
 	Udp_relay_mode     string                 `yaml:"udp_relay_mode,omitempty"`
 	Disable_sni        bool                   `yaml:"disable_sni,omitempty"`
+	Plugin             string                 `yaml:"plugin,omitempty"`
+	Plugin_opts        map[string]interface{} `yaml:"plugin-opts,omitempty"`
 }
 
 type ProxyGroup struct {
@@ -110,8 +112,14 @@ func EncodeClash(urls []string, sqlconfig SqlConfig) ([]byte, error) {
 				Port:             ss.Port,
 				Cipher:           ss.Param.Cipher,
 				Password:         ss.Param.Password,
+				Plugin:          ss.Plugin,
+				Plugin_opts:     ss.PluginOpts,
 				Udp:              sqlconfig.Udp,
 				Skip_cert_verify: sqlconfig.Cert,
+			}
+			// 删除空的 plugin-opts
+			if len(ssproxy.Plugin_opts) == 0 {
+				ssproxy.Plugin_opts = nil
 			}
 			proxys = append(proxys, ssproxy)
 		case Scheme == "ssr":

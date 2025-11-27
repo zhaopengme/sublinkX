@@ -10,32 +10,35 @@ import (
 
 // ss匹配规则
 type Ss struct {
-	Param  Param
-	Server string
-	Port   int
-	Name   string
-	Type   string
+	Param      Param
+	Server     string
+	Port       int
+	Name       string
+	Type       string
+	Plugin     string
+	PluginOpts map[string]interface{}
 }
 type Param struct {
 	Cipher   string
 	Password string
 }
 
-func parsingSS(s string) (string, string, string) {
+func parsingSS(s string) (string, string, string, string) {
 	/* ss url编码分为三部分：加密方式、服务器地址和端口、备注
 	://和@之前为第一部分 @到#之间为第二部分 #之后为第三部分
 	第一部分 为加密方式和密码，格式为：加密方式:密码	示例：aes-128-gcm:123456
 	第二部分 为服务器地址和端口，格式为：服务器地址:端口	示例：xxx.xxx:12345
 	第三部分 为备注，格式为：#备注	示例：#备注
+	第四部分 为插件参数，格式为：?plugin=xxx;xxx=xxx	示例：?plugin=v2ray-plugin;mode=tls
 	*/
 	u, err := url.Parse(s)
 	if err != nil {
 		log.Println("ss url parse fail.", err)
-		return "", "", ""
+		return "", "", "", ""
 	}
 	if u.Scheme != "ss" {
 		log.Println("ss url parse fail, not ss url.")
-		return "", "", ""
+		return "", "", "", ""
 	}
 	// 处理url全编码的情况
 	if u.User == nil {
@@ -44,7 +47,7 @@ func parsingSS(s string) (string, string, string) {
 		s = "ss://" + Base64Decode(raw)
 		u, err = url.Parse(s)
 	}
-	var auth, addr, name string
+	var auth, addr, name, query string
 	auth = u.User.String()
 	if u.Host != "" {
 		addr = u.Host
@@ -52,7 +55,11 @@ func parsingSS(s string) (string, string, string) {
 	if u.Fragment != "" {
 		name = u.Fragment
 	}
-	return auth, addr, name
+	// 获取原始query参数
+	if u.RawQuery != "" {
+		query = u.RawQuery
+	}
+	return auth, addr, name, query
 }
 
 // 开发者测试
@@ -85,7 +92,7 @@ func EncodeSSURL(s Ss) string {
 
 func DecodeSSURL(s string) (Ss, error) {
 	// 解析ss链接
-	param, addr, name := parsingSS(s)
+	param, addr, name, query := parsingSS(s)
 	// base64解码
 	param = Base64Decode(param)
 	// 判断是否为空
@@ -102,6 +109,36 @@ func DecodeSSURL(s string) (Ss, error) {
 	if name == "" {
 		name = addr
 	}
+
+	// 解析plugin参数
+	var plugin string
+	pluginOpts := make(map[string]interface{})
+	if query != "" {
+		// plugin参数格式: plugin=v2ray-plugin;mode=tls;tls=true;host=xxx
+		// 分号分隔各个参数
+		queryParts := strings.Split(query, ";")
+		for _, part := range queryParts {
+			kv := strings.SplitN(part, "=", 2)
+			if len(kv) != 2 {
+				continue
+			}
+			key := kv[0]
+			value := kv[1]
+			if key == "plugin" {
+				plugin = value
+			} else {
+				// 处理 tls=true/false 转换为 bool
+				if value == "true" {
+					pluginOpts[key] = true
+				} else if value == "false" {
+					pluginOpts[key] = false
+				} else {
+					pluginOpts[key] = value
+				}
+			}
+		}
+	}
+
 	// 开发环境输出结果
 	if CheckEnvironment() {
 		fmt.Println("Param:", Base64Decode(param))
@@ -110,6 +147,8 @@ func DecodeSSURL(s string) (Ss, error) {
 		fmt.Println("Name:", name)
 		fmt.Println("Cipher:", cipher)
 		fmt.Println("Password:", password)
+		fmt.Println("Plugin:", plugin)
+		fmt.Println("PluginOpts:", pluginOpts)
 	}
 	// 返回结果
 	return Ss{
@@ -117,9 +156,11 @@ func DecodeSSURL(s string) (Ss, error) {
 			Cipher:   cipher,
 			Password: password,
 		},
-		Server: server,
-		Port:   port,
-		Name:   name,
-		Type:   "ss",
+		Server:     server,
+		Port:       port,
+		Name:       name,
+		Type:       "ss",
+		Plugin:     plugin,
+		PluginOpts: pluginOpts,
 	}, nil
 }
